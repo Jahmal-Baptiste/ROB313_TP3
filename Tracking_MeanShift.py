@@ -80,14 +80,14 @@ first_hsv = cv2.cvtColor(first_frame_clone, cv2.COLOR_BGR2HSV)
 
 # computation mask of the histogram:
 # Pixels with S<30 or V<20 or V>235 are ignored 
-min_hsv          = np.array([0., 40., 0.])
-max_hsv          = np.array([180., 255., 235.])
+min_hsv          = np.array([0., 50., 0.])
+max_hsv          = np.array([180., 255., 255.])
 
 roi_mask         = cv2.inRange(roi_hsv, min_hsv, max_hsv)
 first_frame_mask = cv2.inRange(first_hsv, min_hsv, max_hsv)
 
 #cv2.imshow('ROI Mask', roi_mask)
-#cv2.imshow('First frame Mask', first_frame_mask)
+cv2.imshow('First frame H Masked', first_hsv[:, :, 0]*first_frame_mask)
 
 
 # Marginal histogram of the Hue component
@@ -120,9 +120,11 @@ term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 20, 1 )
 if video:
     cpt = 1
     while(1):
-        ret, current_frame = cap.read()
+        ret, current_frame  = cap.read()
 
         if ret == True:		
+            current_frame_clone = current_frame.copy()
+
             hsv = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV)
 
             if frame_masking:
@@ -146,12 +148,14 @@ if video:
             cv2.imshow('Sequence', frame_tracked)
 
             if updating:
-                roi      = current_frame[y:y+h, x:x+w]
+                roi      = current_frame_clone[y:y+h, x:x+w]
                 roi_hsv  = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-                #roi_mask = cv2.inRange(roi_hsv, min_hsv, max_hsv)
-                roi_hist = cv2.calcHist([roi_hsv], [0], None, [180], [0,180])
+                roi_mask = cv2.inRange(roi_hsv, min_hsv, max_hsv)
+                roi_hist = cv2.calcHist([roi_hsv], [0], roi_mask, [180], [0,180])
                 cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
-                #roi_hsv[:, :, 0] *= roi_mask
+
+                roi_hsv[:, :, 0] *= roi_mask
+                cv2.imshow("ROI", roi)
                 cv2.imshow('ROI HSV', roi_hsv[:, :, 0])
 
 
