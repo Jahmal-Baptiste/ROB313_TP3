@@ -4,11 +4,15 @@ import matplotlib.pyplot as plt
 
 
 # Algorithm improvements
-updating      = True
+updating      = False
 frame_masking = True
+gradient      = True
+hsv_input     = False
+
+first_frame_show = False
+video_show       = True
 
 roi_defined = False
-video       = True
 
 def define_ROI(event, x, y, flags, param):
     global r, c, w, h, roi_defined
@@ -63,7 +67,6 @@ while True:
 # set up the ROI for tracking 
 track_window = (r, c, w, h)
 roi          = first_frame_clone[c:c+h, r:r+w]
-#cv2.imshow('ROI', roi)
 
 #---------------------------------------------------------------------------------------------
 
@@ -72,22 +75,39 @@ roi          = first_frame_clone[c:c+h, r:r+w]
 roi_hsv   = cv2.cvtColor(roi,               cv2.COLOR_BGR2HSV)
 first_hsv = cv2.cvtColor(first_frame_clone, cv2.COLOR_BGR2HSV)
 
-# Interest measures
-# Can be useful to calibrate the min_hsv and max_hsv arrays
-#cv2.imshow("H", first_hsv[:, :, 0])
-#cv2.imshow("S", first_hsv[:, :, 1])
-#cv2.imshow("V", first_hsv[:, :, 2])
+s_min = 50.
+s_max = 255.
+v_min = 5.
+v_max = 100.
+
+if hsv_input:
+    # Interest measures
+    # Can be useful to calibrate the min_hsv and max_hsv arrays
+    cv2.imshow("First Frame S", first_hsv[:, :, 1])
+    cv2.imshow("First Frame V", first_hsv[:, :, 2])
+
+    first_frame_hist_S = cv2.calcHist([first_hsv], [1], None, [180], [0, 180])
+    first_frame_hist_V = cv2.calcHist([first_hsv], [2], None, [180], [0, 180])
+    plt.subplot(1, 2, 1)
+    plt.title("First Frame S histogram")
+    plt.plot(first_frame_hist_S)
+    plt.subplot(1, 2, 2)
+    plt.title("First Frame V histogram")
+    plt.plot(first_frame_hist_V)
+    plt.show()
+
+    s_min = float(input("Type the minimum value of SATURATION:\n"))
+    s_max = float(input("Type the maximum value of SATURATION:\n"))
+    v_min = float(input("Type the minimum value of VALUE:\n"))
+    v_max = float(input("Type the maximum value of VALUE:\n"))
+
 
 # computation mask of the histogram:
 # Pixels with S<30 or V<20 or V>235 are ignored 
-min_hsv          = np.array([0., 50., 0.])
-max_hsv          = np.array([180., 255., 255.])
+min_hsv  = np.array([0., s_min, v_min])
+max_hsv  = np.array([180., s_max, v_max])
 
-roi_mask         = cv2.inRange(roi_hsv, min_hsv, max_hsv)
-first_frame_mask = cv2.inRange(first_hsv, min_hsv, max_hsv)
-
-#cv2.imshow('ROI Mask', roi_mask)
-cv2.imshow('First frame H Masked', first_hsv[:, :, 0]*first_frame_mask)
+roi_mask = cv2.inRange(roi_hsv, min_hsv, max_hsv)
 
 
 # Marginal histogram of the Hue component
@@ -98,11 +118,12 @@ roi_hist = cv2.calcHist([roi_hsv], [0], roi_mask, [180], [0, 180])
 cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
 
 
-plt.show()
-
 # draw the initial backproject
-while True:
+while first_frame_show:
+    first_frame_mask    = cv2.inRange(first_hsv, min_hsv, max_hsv)
     first_hsv[:, :, 0] *= first_frame_mask
+    cv2.imshow('First frame H Masked', first_hsv[:, :, 0])
+    
     first_dst = cv2.calcBackProject([first_hsv], [0], roi_hist, [0,180], 1)
     cv2.imshow('Initial Backproject', first_dst)
     
@@ -117,7 +138,7 @@ term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 20, 1 )
 
 #---------------------------------------------------------------------------------------------
 
-if video:
+if video_show:
     cpt = 1
     while(1):
         ret, current_frame  = cap.read()
@@ -127,11 +148,34 @@ if video:
 
             hsv = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV)
 
+            if gradient:
+                Dx = cv2.Sobel(hsv[:, :, 2], cv2.CV_64F, 1, 0)
+                Dy = cv2.Sobel(hsv[:, :, 2], cv2.CV_64F, 0, 1)
+                G  = np.sqrt(Dx*Dx + Dy*Dy)
+                cv2.normalize(G, G, 0, 255, cv2.NORM_MINMAX)
+                threshold = 30.
+                G_mask    = cv2.inRange(G, np.array([threshold]), np.array([255.]))
+
+                Dx    = np.where(Dx == 0, np.inf, Dx)
+                O     = np.where(Dx > 0, np.arctan(Dy/Dx), np.arctan(Dy/Dx) + np.pi)
+                O_cos = 0.5*(np.cos(O) + 1)*G_mask #normalized to [0, 255]
+                O_sin = 0.5*(np.sin(O) + 1)*G_mask #normalized to [0, 255]
+
+                Orientation = np.zeros((O.shape[0], O.shape[1], 3))
+                Orientation[:, :, 2] = 255 - G_mask
+                Orientation[:, :, 1] = O_cos
+                Orientation[:, :, 0] = O_sin
+
+                cv2.imshow('Orientations', Orientation)
+                
+
             if frame_masking:
                 frame_mask    = cv2.inRange(hsv, min_hsv, max_hsv)
                 hsv[:, :, 0] *= frame_mask
-                cv2.imshow("Frame HSV", hsv[:, :, 0])
+                cv2.imshow('Frame Mask', frame_mask)
+                cv2.imshow('Frame HSV', hsv[:, :, 0])
 
+            
             # Backproject the model histogram roi_hist onto the
             # current image hsv, i.e. dst(x, y) = roi_hist(hsv(0, x, y))
             dst = cv2.calcBackProject([hsv], [0], roi_hist, [0,180], 1)
