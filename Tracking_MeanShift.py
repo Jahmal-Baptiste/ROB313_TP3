@@ -1,28 +1,30 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from utils import *
 
 
 # Algorithm improvements
-updating      = False
-frame_masking = True
-gradient      = True
-hsv_input     = False
+updating           = 0
+frame_masking      = 1
+hsv_input          = 0
+gradient_computing = 1
+GRADIENT_CHANNEL   = 2
+GRADIENT_THRESHOLD = 50.
 
-first_frame_show = False
-video_show       = True
+first_frame_show = 0
+video_show       = 1
 
-roi_defined = False
+roi_defined = 0
 
 def define_ROI(event, x, y, flags, param):
     global r, c, w, h, roi_defined
     # if the left mouse button was clicked, 
     # record the starting ROI coordinates 
     if event == cv2.EVENT_LBUTTONDOWN:
-        #r, c = x, y
         r = x
         c = y
-        roi_defined = False
+        roi_defined = 0
     # if the left mouse button was released,
     # record the ROI coordinates and dimensions
     elif event == cv2.EVENT_LBUTTONUP:
@@ -31,7 +33,7 @@ def define_ROI(event, x, y, flags, param):
         h = abs(c2 - c)
         r = min(r, r2)
         c = min(c, c2)  
-        roi_defined = True
+        roi_defined = 1
 
 #---------------------------------------------------------------------------------------------
 
@@ -118,9 +120,18 @@ roi_hist = cv2.calcHist([roi_hsv], [0], roi_mask, [180], [0, 180])
 cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
 
 
+# create RTable
+cv2.normalize(roi_mask, roi_mask, 0, 1, cv2.NORM_MINMAX)
+roi_hsv[:, :, GRADIENT_CHANNEL] *= roi_mask
+
+r_table = construct_RTable(roi_hsv, GRADIENT_THRESHOLD)
+
+
 # draw the initial backproject
 while first_frame_show:
     first_frame_mask    = cv2.inRange(first_hsv, min_hsv, max_hsv)
+    cv2.normalize(first_frame_mask, first_frame_mask, 0, 1, cv2.NORM_MINMAX)
+
     first_hsv[:, :, 0] *= first_frame_mask
     cv2.imshow('First frame H Masked', first_hsv[:, :, 0])
     
@@ -146,22 +157,19 @@ if video_show:
         if ret == True:		
             current_frame_clone = current_frame.copy()
 
-            hsv = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV)
+            frame_hsv = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV)
 
-            if gradient:
-                Dx = cv2.Sobel(hsv[:, :, 2], cv2.CV_64F, 1, 0)
-                Dy = cv2.Sobel(hsv[:, :, 2], cv2.CV_64F, 0, 1)
+            if gradient_computing:
+                Dx = cv2.Sobel(frame_hsv[:, :, GRADIENT_CHANNEL], cv2.CV_64F, 1, 0)
+                Dy = cv2.Sobel(frame_hsv[:, :, GRADIENT_CHANNEL], cv2.CV_64F, 0, 1)
                 G  = np.sqrt(Dx*Dx + Dy*Dy)
 
                 cv2.normalize(G, G, 0, 255, cv2.NORM_MINMAX)
-                threshold = 50.
-                G_mask    = cv2.inRange(G, np.array([threshold]), np.array([255.]))
+                G_mask = cv2.inRange(G, np.array([GRADIENT_THRESHOLD]), np.array([255.]))
 
                 O     = np.arctan2(Dy, Dx)
                 O_cos = 0.5*(np.cos(O) + 1)*G_mask #normalized to [0, 255]
                 O_sin = 0.5*(np.sin(O) + 1)*G_mask #normalized to [0, 255]
-                #O_cos = np.abs(np.cos(O)*G_mask) #normalized to [0, 255]
-                #O_sin = np.abs(np.sin(O)*G_mask) #normalized to [0, 255]
 
                 Orientation = np.zeros((O.shape[0], O.shape[1], 3))
                 Orientation[:, :, 0] = O_cos
@@ -169,19 +177,21 @@ if video_show:
                 Orientation[:, :, 2] = 255 - G_mask
 
                 cv2.imshow('Orientations', Orientation)
-                #cv2.imshow('G mask', G_mask)
+
+                hough = compute_hough(frame_hsv, O, G_mask, roi_hsv, r_table)
                 
 
             if frame_masking:
-                frame_mask    = cv2.inRange(hsv, min_hsv, max_hsv)
-                hsv[:, :, 0] *= frame_mask
-                cv2.imshow('Frame Mask', frame_mask)
-                cv2.imshow('Frame HSV', hsv[:, :, 0])
+                frame_mask    = cv2.inRange(frame_hsv, min_hsv, max_hsv)
+                cv2.normalize(frame_mask, frame_mask, 0, 1, cv2.NORM_MINMAX)
+                frame_hsv[:, :, 0] *= frame_mask
+                #cv2.imshow('Frame Mask', frame_mask)
+                #cv2.imshow('Frame H', hsv[:, :, 0])
 
             
             # Backproject the model histogram roi_hist onto the
             # current image hsv, i.e. dst(x, y) = roi_hist(hsv(0, x, y))
-            dst = cv2.calcBackProject([hsv], [0], roi_hist, [0,180], 1)
+            dst = cv2.calcBackProject([frame_hsv], [0], roi_hist, [0,180], 1)
 
             # Draw the backproject of the current image
             cv2.imshow('Backproject', dst)
@@ -200,13 +210,14 @@ if video_show:
                 roi_mask = cv2.inRange(roi_hsv, min_hsv, max_hsv)
                 roi_hist = cv2.calcHist([roi_hsv], [0], roi_mask, [180], [0,180])
                 cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
-
+                cv2.normalize(roi_mask, roi_mask, 0, 1, cv2.NORM_MINMAX)
+                
                 roi_hsv[:, :, 0] *= roi_mask
                 cv2.imshow("ROI", roi)
                 cv2.imshow('ROI HSV', roi_hsv[:, :, 0])
 
 
-            k = cv2.waitKey(60) & 0xff
+            k = cv2.waitKey(10) & 0xff
             if k == 27:
                 break
             elif k == ord('s'):
