@@ -152,21 +152,24 @@ if video_show:
                 Dx = cv2.Sobel(hsv[:, :, 2], cv2.CV_64F, 1, 0)
                 Dy = cv2.Sobel(hsv[:, :, 2], cv2.CV_64F, 0, 1)
                 G  = np.sqrt(Dx*Dx + Dy*Dy)
+
                 cv2.normalize(G, G, 0, 255, cv2.NORM_MINMAX)
-                threshold = 30.
+                threshold = 50.
                 G_mask    = cv2.inRange(G, np.array([threshold]), np.array([255.]))
 
-                Dx    = np.where(Dx == 0, np.inf, Dx)
-                O     = np.where(Dx > 0, np.arctan(Dy/Dx), np.arctan(Dy/Dx) + np.pi)
+                O     = np.arctan2(Dy, Dx)
                 O_cos = 0.5*(np.cos(O) + 1)*G_mask #normalized to [0, 255]
                 O_sin = 0.5*(np.sin(O) + 1)*G_mask #normalized to [0, 255]
+                #O_cos = np.abs(np.cos(O)*G_mask) #normalized to [0, 255]
+                #O_sin = np.abs(np.sin(O)*G_mask) #normalized to [0, 255]
 
                 Orientation = np.zeros((O.shape[0], O.shape[1], 3))
+                Orientation[:, :, 0] = O_cos
+                Orientation[:, :, 1] = O_sin
                 Orientation[:, :, 2] = 255 - G_mask
-                Orientation[:, :, 1] = O_cos
-                Orientation[:, :, 0] = O_sin
 
                 cv2.imshow('Orientations', Orientation)
+                #cv2.imshow('G mask', G_mask)
                 
 
             if frame_masking:
