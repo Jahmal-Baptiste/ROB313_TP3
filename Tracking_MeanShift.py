@@ -178,7 +178,7 @@ if video_show:
 
                 cv2.imshow('Orientations', Orientation)
 
-                hough = compute_hough(frame_hsv, O, G_mask, r_table)
+                hough = compute_hough(frame_hsv, O, G_mask, r_table).astype(float)
                 cv2.normalize(hough, hough, 0, 255, cv2.NORM_MINMAX)
                 cv2.imshow('Hough Transform', hough)
                 

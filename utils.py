@@ -173,7 +173,7 @@ def compute_hough(image, image_grad_orient, image_grad_mask, r_table, channel=2)
 
     # hough computation
     #hough = np.zeros_like(image[:, :, channel])
-    hough = vote_func(positions).astype(float) #Takes a lot of time...
+    hough = vote_func(positions) #Takes a lot of time...
 
     ### ALTERNATE HOUGH COMPUTATION ###
     ### (MUCH MORE TIME-CONSUMING)  ###
