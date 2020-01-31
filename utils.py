@@ -165,17 +165,15 @@ def compute_hough(image, image_grad_orient, image_grad_mask, r_table, channel=2)
     positions    = np.reshape(positions, image[:, :, channel].shape)
 
     # filling of the positions of the edge points alone    
-    #tuple_edges_pos      = [(edges_pos[0][k], edges_pos[1][k]) for k in range(edges_pos[0].shape[0])]
-    t_edges_pos          = np.transpose(edges_pos)
-    tuple_edges_pos      = np.empty(edges_pos[0].shape[0], dtype=tuple)
-    tuple_edges_pos[:]   = [tuple(pos) for pos in t_edges_pos] #np.apply_along_axis(tuple, 0, t_edges_pos)...
+    tuple_edges_pos      = [(edges_pos[0][k], edges_pos[1][k]) for k in range(edges_pos[0].shape[0])]
     positions[edges_pos] = tuple_edges_pos
 
     # definition and vectorization of the vote function
     vote_func = np.vectorize(lambda pos : len(r_table[appearances[pos]]))
 
     # hough computation
-    hough = vote_func(positions) #Takes a lot of time...
+    #hough = np.zeros_like(image[:, :, channel])
+    hough = vote_func(positions).astype(float) #Takes a lot of time...
 
     ### ALTERNATE HOUGH COMPUTATION ###
     ### (MUCH MORE TIME-CONSUMING)  ###
