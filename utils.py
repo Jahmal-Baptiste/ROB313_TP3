@@ -102,18 +102,18 @@ def complete_r_table(quantised_orient, obj_mask, ref_point):
     """
     orient_num = np.unique(quantised_orient).shape[0]
     r_table    = OrderedDict()
-    for k in range(-1, 181):
-        r_table[k] = [(0, 0)]
+    #for k in range(-1, 181):
+    #    r_table[k] = [(0, 0)]
 
     edges_pos  = np.argwhere(obj_mask != 0)
     for i, pos in enumerate(edges_pos):
         alpha = quantised_orient[tuple(pos)]
         r     = pos - ref_point
-        r_table[alpha].append(r)
-        #if alpha not in list(r_table.keys()):
-        #    r_table[alpha] = [r]
-        #else:
-        #    r_table[alpha].append(r)
+        #r_table[alpha].append(r)
+        if alpha not in list(r_table.keys()):
+            r_table[alpha] = [r]
+        else:
+            r_table[alpha].append(r)
     return r_table
 
 
@@ -129,10 +129,9 @@ def construct_RTable(obj, gradient_threshold, channel=2):
 
     # calculate the gradient module
     grad_module = gradient_module(Dx, Dy)
-    cv2.normalize(grad_module, grad_module, 0, 255, cv2.NORM_MINMAX)
 
     # calculate the mask of the image wrt the gradient module threshold
-    grad_mask = cv2.inRange(grad_module, np.array([gradient_threshold]), np.array([255.]))
+    grad_mask = cv2.inRange(grad_module, np.array([gradient_threshold]), np.array([np.inf]))
 
     # normalize the mask for future computation
     cv2.normalize(grad_mask, grad_mask, 0, 1, cv2.NORM_MINMAX)

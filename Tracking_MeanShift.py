@@ -6,11 +6,12 @@ from utils import *
 
 # Algorithm improvements
 hsv_input        = 0
-updating         = 0
-frame_masking    = 1
-hough_tracker    = 1
-argmax_computing = 1
+hist_updating    = 0
+frame_masking    = 0
+hough_tracker    = 0
+argmax_computing = 0
 
+# Parameters for the algorithms
 GRADIENT_CHANNEL   = 2
 GRADIENT_THRESHOLD = 50.
 NUM_MAX_POINTS     = 2
@@ -21,8 +22,7 @@ roi_defined = 0
 def define_ROI(event, x, y, flags, param):
     global r, c, w, h, roi_defined
     if event == cv2.EVENT_LBUTTONDOWN:
-        r = x
-        c = y
+        r, c = x, y
         roi_defined = 0
     elif event == cv2.EVENT_LBUTTONUP:
         r2, c2 = x, y
@@ -71,8 +71,7 @@ roi          = first_frame_clone[c:c+h, r:r+w]
 
 # conversion to Hue-Saturation-Value space
 # 0 < H < 180 ; 0 < S < 255 ; 0 < V < 255
-roi_hsv   = cv2.cvtColor(roi,               cv2.COLOR_BGR2HSV)
-first_hsv = cv2.cvtColor(first_frame_clone, cv2.COLOR_BGR2HSV)
+roi_hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
 s_min = 50.
 s_max = 255.
@@ -80,7 +79,8 @@ v_min = 5.
 v_max = 100.
 
 if hsv_input:
-    # show the hsv components of the first frame to calibrate the bounds of the mask function
+    # show the hsv components of the first frame to calibrate manually the bounds of the mask function
+    first_hsv = cv2.cvtColor(first_frame_clone, cv2.COLOR_BGR2HSV)
     s_min, s_max, v_min, v_max = hsv_bound_input(first_hsv)
 
 
@@ -137,11 +137,12 @@ while(1):
 
         cv2.imshow('Orientations', orient_img)
 
-        hough = compute_hough(frame_hsv, orient, grad_mask, r_table).astype(float)
-        cv2.normalize(hough, hough, 0, 255, cv2.NORM_MINMAX)
-        cv2.imshow('Hough Transform', hough)
 
         if hough_tracker:
+            hough = compute_hough(frame_hsv, orient, grad_mask, r_table).astype(float)
+            cv2.normalize(hough, hough, 0, 255, cv2.NORM_MINMAX)
+            cv2.imshow('Hough Transform', hough)
+            
             if argmax_computing:
                 track_window = hough_window(hough, num_points=NUM_MAX_POINTS)
             else:
@@ -154,7 +155,6 @@ while(1):
             frame_hsv[:, :, 0] *= frame_mask
         
         # Backproject the model histogram roi_hist onto the
-        # current image hsv, i.e. dst(x, y) = roi_hist(hsv(0, x, y))
         dst = cv2.calcBackProject([frame_hsv], [0], roi_hist, [0,180], 1)
 
         # Draw the backproject of the current image
@@ -170,17 +170,14 @@ while(1):
         frame_tracked = cv2.rectangle(current_frame, (x, y), (x+w, y+h), (0, 0, 255) ,2)
         cv2.imshow('Sequence', frame_tracked)
 
-        if updating:
+        if hist_updating:
             # Does not help...
             roi      = current_frame_clone[y:y+h, x:x+w]
             roi_hsv  = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
             roi_mask = cv2.inRange(roi_hsv, min_hsv, max_hsv)
             roi_hist = cv2.calcHist([roi_hsv], [0], roi_mask, [180], [0,180])
             cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
-            cv2.normalize(roi_mask, roi_mask, 0, 1, cv2.NORM_MINMAX)
             
-            roi_hsv[:, :, 0] *= roi_mask
-
 
         k = cv2.waitKey(60) & 0xff
         if k == 27:
