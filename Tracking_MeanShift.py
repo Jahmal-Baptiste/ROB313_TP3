@@ -5,16 +5,16 @@ from utils import *
 
 
 # Algorithm improvements
-hsv_input        = 0
-hist_updating    = 0
-frame_masking    = 0
-hough_tracker    = 0
-argmax_computing = 0
+hsv_input        = 0 # to calibrate the min and max values of h,s,v for masking
+hist_updating    = 0 # to update the histogram of the ROI object for the next iteration
+frame_masking    = 0 # to mask each frame of the image, not just the ROI object
+hough_tracker    = 0 # to use Hough transform as the tracking algorithm
+argmax_computing = 0 # to find the window using the argmax of Hough transform
 
 # Parameters for the algorithms
-GRADIENT_CHANNEL   = 2
-GRADIENT_THRESHOLD = 50.
-NUM_MAX_POINTS     = 2
+GRADIENT_CHANNEL   = 2   # the chanel of the hsv image that we are interested to find the gradient
+GRADIENT_THRESHOLD = 50. # the threshold of the module of the gradient
+NUM_MAX_POINTS     = 2   # the number of points to consider for finding the window for the object
 
 
 roi_defined = 0
