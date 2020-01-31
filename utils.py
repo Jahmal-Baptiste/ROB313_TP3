@@ -4,8 +4,14 @@ import matplotlib.pyplot as plt
 from collections import OrderedDict
 
 
-
 def hsv_bound_input(hsv):
+    """
+    This function plot the histogram of an hsv-format image and show
+    the histogram in each layer. From these histograms, the user can
+    choose min and max values for masking.
+    :param hsv:
+    :return:
+    """
     cv2.imshow("Frame S", hsv[:, :, 1])
     cv2.imshow("Frame V", hsv[:, :, 2])
 
@@ -28,6 +34,15 @@ def hsv_bound_input(hsv):
 
 
 def show_frame(hsv, min_hsv, max_hsv, roi_hist):
+    """
+    This function display a hsv-format frame at H level and display
+    the backprojection of and object-histogram in to that frame.
+    :param hsv:
+    :param min_hsv:
+    :param max_hsv:
+    :param roi_hist:
+    :return:
+    """
     frame_mask    = cv2.inRange(hsv, min_hsv, max_hsv)
     cv2.normalize(frame_mask, frame_mask, 0, 1, cv2.NORM_MINMAX)
 
@@ -40,7 +55,9 @@ def show_frame(hsv, min_hsv, max_hsv, roi_hist):
 
 def image_gradient(img, channel=0):
     """
-    calculate the gradient of an hsv_image in a kernel k.
+    calculate the gradient of an hsv-format image in a kernel k.
+    :param img:
+    :param channel:
     :return:
     """
     Dx = cv2.Sobel(img[:, :, channel], cv2.CV_64F, 1, 0)
@@ -60,7 +77,8 @@ def gradient_module(Dx, Dy):
 
 def gradient_orientation(Dx, Dy):
     """
-    Calculate the orientation of the gradient in degree.
+    Calculate the orientation of the gradient in degree from
+    0 to 360 degree.
     :param Dx:
     :param Dy:
     :return:
@@ -81,10 +99,10 @@ def quantise_grad_orientation(orientation, angle_step=2):
     return np.floor(orientation/angle_step)
 
 
-
 def image_ref_point(edges_img):
     """
-    Find the reference point of an image.
+    Find the reference point of an image by using
+    the edges representation of the object in that image.
     :param edges_img:
     :return:
     """
@@ -96,20 +114,15 @@ def complete_r_table(quantised_orient, obj_mask, ref_point):
     """
     Complete the R-Table of an object.
     :param quantised_orient:
-    :param edges_img:
+    :param obj_mask:
     :param ref_point:
     :return:
     """
-    orient_num = np.unique(quantised_orient).shape[0]
     r_table    = OrderedDict()
-    #for k in range(-1, 181):
-    #    r_table[k] = [(0, 0)]
-
     edges_pos  = np.argwhere(obj_mask != 0)
     for i, pos in enumerate(edges_pos):
         alpha = quantised_orient[tuple(pos)]
         r     = pos - ref_point
-        #r_table[alpha].append(r)
         if alpha not in list(r_table.keys()):
             r_table[alpha] = [r]
         else:
@@ -121,9 +134,11 @@ def construct_RTable(obj, gradient_threshold, channel=2):
     """
     Construct the R-Table of an hsv_object in a given channel.
     :param obj:
-    :param k:
+    :param gradient_threshold:
+    :param channel:
     :return:
     """
+
     # calculate the gradient of the obj at v level
     Dx, Dy = image_gradient(obj, channel)
 
@@ -152,6 +167,15 @@ def construct_RTable(obj, gradient_threshold, channel=2):
 
 
 def compute_hough(image, image_grad_orient, image_grad_mask, r_table):
+    """
+    Compute the hough transform of an image give the r-table of the object
+    of interest.
+    :param image:
+    :param image_grad_orient:
+    :param image_grad_mask:
+    :param r_table:
+    :return:
+    """
     # compute the orientation of the gradient in degrees
     grad_orient = image_grad_orient*(180./np.pi)
     grad_orient = np.where(grad_orient < 0, grad_orient + 360, grad_orient)
@@ -173,8 +197,8 @@ def compute_hough(image, image_grad_orient, image_grad_mask, r_table):
                 hough[tuple(pos)] += 1
     
 
-    ### ALTERNATE HOUGH COMPUTATION ###
-    ###       (UNFINISHED...)       ###
+    ### ALTERNATE FASTER HOUGH COMPUTATION ###
+    ###          (UNFINISHED...)           ###
 
     #edges_pos              = np.nonzero(image_grad_mask)
     #appearances            = -1*np.ones_like(image_grad_orient) # appearance of -1 for the points that are not edges
@@ -201,6 +225,14 @@ def compute_hough(image, image_grad_orient, image_grad_mask, r_table):
 
 
 def hough_window(hough, num_points):
+    """
+    Find the window of the tracked object based on the positions of the  num_points
+    most largest values in  hough transform of an image.
+    :param hough:
+    :param num_points:
+    :return:
+    """
+
     max_prob_indexes = np.transpose(np.unravel_index(np.argsort(hough, axis=None), hough.shape))[0:num_points]
     min_pos          = np.amin(max_prob_indexes, 0)
     max_pos          = np.amax(max_prob_indexes, 0)
