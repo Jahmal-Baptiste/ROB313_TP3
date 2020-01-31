@@ -96,15 +96,18 @@ def complete_r_table(quantised_orient, obj_mask, ref_point):
     """
     orient_num = np.unique(quantised_orient).shape[0]
     r_table    = OrderedDict()
-    r_table[-1] = (0, 0)
+    for k in range(-1, 181):
+        r_table[k] = [(0, 0)]
+
     edges_pos  = np.argwhere(obj_mask != 0)
     for i, pos in enumerate(edges_pos):
         alpha = quantised_orient[tuple(pos)]
         r     = pos - ref_point
-        if alpha not in list(r_table.keys()):
-            r_table[alpha] = [r]
-        else:
-            r_table[alpha].append(r)
+        r_table[alpha].append(r)
+        #if alpha not in list(r_table.keys()):
+        #    r_table[alpha] = [r]
+        #else:
+        #    r_table[alpha].append(r)
     return r_table
 
 
@@ -131,9 +134,6 @@ def construct_RTable(obj, gradient_threshold, channel=2):
     # calculate the orientation of the gradient in degree
     grad_orient = gradient_orientation(Dx, Dy)
 
-    # find the edge of the obj
-    #edges_img = edges_image(obj, k)
-
     # quantise the orientation to 180 direction (2 degree of step)
     quantised_grad_orient = quantise_grad_orientation(grad_orient, 2)
 
@@ -146,32 +146,39 @@ def construct_RTable(obj, gradient_threshold, channel=2):
     return r_table
 
 
-def compute_hough(image, grad_orient, image_grad_mask, obj, r_table, channel=2):
-    hough, appearances = np.zeros_like(image[:, :, channel]), -1*np.ones_like(image[:, :, channel])
-    positions = np.empty(image[:, :, channel].shape, dtype=object)
+def compute_hough(image, image_grad_orient, image_grad_mask, r_table, channel=2):
+    # compute the orientation of the gradient in degrees
+    grad_orient = image_grad_orient*(180./np.pi)
+    grad_orient = np.where(grad_orient < 0, grad_orient + 360, grad_orient)
 
-    # calculate the orientation of the gradient in degree
-    image_grad_orient = grad_orient*(180/np.pi)
-    image_grad_orient = np.where(image_grad_orient < 0, image_grad_orient + 360, image_grad_orient)
+    # quantise the orientation to 180 direction (step of 2 degrees)
+    quantised_grad_orient = quantise_grad_orientation(grad_orient, 2)
 
-    # quantise the orientation to 180 direction (2 degree of step)
-    image_quantised_grad_orient = quantise_grad_orientation(image_grad_orient, 2)
+    # compute the appearances of all the edge points of the image
+    edges_pos              = np.nonzero(image_grad_mask)
+    appearances            = -1*np.ones_like(image[:, :, channel]) # appearance of -1 for the points that are not edges
+    appearances[edges_pos] = quantised_grad_orient[edges_pos]
+    
+    # create an array of the positions of the image points (initialised at (0, 0) for all points)
+    positions    = np.empty(image[:, :, channel].shape[0]*image[:, :, channel].shape[1], dtype=tuple)
+    positions[:] = [(0, 0)]
+    positions    = np.reshape(positions, image[:, :, channel].shape)
 
-    image_edges_pos = np.nonzero(image_grad_mask)
-    appearances[image_edges_pos[0], image_edges_pos[1]] = image_quantised_grad_orient[image_edges_pos[0], image_edges_pos[1]]
-    positions[image_edges_pos[0], image_edges_pos[1]]   = 0 #image_edges_pos[0], image_edges_pos[1]
+    # filling of the positions of the edge points alone    
+    #tuple_edges_pos      = [(edges_pos[0][k], edges_pos[1][k]) for k in range(edges_pos[0].shape[0])]
+    t_edges_pos          = np.transpose(edges_pos)
+    tuple_edges_pos      = np.empty(edges_pos[0].shape[0], dtype=tuple)
+    tuple_edges_pos[:]   = [tuple(pos) for pos in t_edges_pos] #np.apply_along_axis(tuple, 0, t_edges_pos)...
+    positions[edges_pos] = tuple_edges_pos
 
-    def vote_func(pos):
-        return len(r_table[appearances[pos]])
-        
-    vvote_func = np.vectorize(vote_func)
+    # definition and vectorization of the vote function
+    vote_func = np.vectorize(lambda pos : len(r_table[appearances[pos]]))
 
-    test_list  = [(0, 0), (0, 1)]
-    test_array = np.empty((2, 2), dtype=object)
-    test_array[(0, 0), (0, 1)] = (0, 0)
-    #hough = vvote_func(test_array)
+    # hough computation
+    hough = vote_func(positions) #Takes a lot of time...
 
-
+    ### ALTERNATE HOUGH COMPUTATION ###
+    ### (MUCH MORE TIME-CONSUMING)  ###
     #for i, pos_i in enumerate(image_edges_pos):
     #    appearance_index = image_quantised_grad_orient[tuple(pos_i)]
     #    if appearance_index in list(r_table.keys()):

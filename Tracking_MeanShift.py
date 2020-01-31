@@ -178,7 +178,7 @@ if video_show:
 
                 cv2.imshow('Orientations', Orientation)
 
-                hough = compute_hough(frame_hsv, O, G_mask, roi_hsv, r_table)
+                hough = compute_hough(frame_hsv, O, G_mask, r_table)
                 
 
             if frame_masking:
@@ -194,7 +194,7 @@ if video_show:
             dst = cv2.calcBackProject([frame_hsv], [0], roi_hist, [0,180], 1)
 
             # Draw the backproject of the current image
-            cv2.imshow('Backproject', dst)
+            #cv2.imshow('Backproject', dst)
 
             # apply meanshift to dst to get the new location
             ret, track_window = cv2.meanShift(dst, track_window, term_crit)
@@ -217,7 +217,7 @@ if video_show:
                 cv2.imshow('ROI HSV', roi_hsv[:, :, 0])
 
 
-            k = cv2.waitKey(10) & 0xff
+            k = cv2.waitKey(60) & 0xff
             if k == 27:
                 break
             elif k == ord('s'):
