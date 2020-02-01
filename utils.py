@@ -120,6 +120,9 @@ def complete_r_table(quantised_orient, obj_mask, ref_point):
     """
     r_table    = OrderedDict()
     edges_pos  = np.argwhere(obj_mask != 0)
+    # for the alternate version of the hough computation
+    #for k in range(-1, 181):
+    #    r_table[k] = [np.array((0, 0))]
     for i, pos in enumerate(edges_pos):
         alpha = quantised_orient[tuple(pos)]
         r     = pos - ref_point
@@ -147,9 +150,6 @@ def construct_RTable(obj, gradient_threshold, channel=2):
 
     # calculate the mask of the image wrt the gradient module threshold
     grad_mask = cv2.inRange(grad_module, np.array([gradient_threshold]), np.array([np.inf]))
-
-    # normalize the mask for future computation
-    cv2.normalize(grad_mask, grad_mask, 0, 1, cv2.NORM_MINMAX)
 
     # calculate the orientation of the gradient in degree
     grad_orient = gradient_orientation(Dx, Dy)
